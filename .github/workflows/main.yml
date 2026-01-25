@@ -1,0 +1,25 @@
+name: Manter Sites Ativos
+
+on:
+  schedule:
+    # Roda uma vez por dia às 03:00 UTC (Meia-noite no horário de Brasília)
+    - cron: '0 3 * * *'
+  workflow_dispatch: # Mantém o botão para rodar manualmente quando você quiser
+
+jobs:
+  acessar_sites:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Baixar código do repo
+        uses: actions/checkout@v3
+
+      - name: Instalar Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Instalar dependências
+        run: pip install requests
+
+      - name: Executar script de acesso
+        run: python manter_sites.py
