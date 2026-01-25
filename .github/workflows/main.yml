@@ -1,25 +1,34 @@
-name: Manter Sites Ativos
+name: Renovacao GoFile 3 Dias
 
 on:
   schedule:
-    # Roda uma vez por dia às 03:00 UTC (Meia-noite no horário de Brasília)
-    - cron: '0 3 * * *'
-  workflow_dispatch: # Mantém o botão para rodar manualmente quando você quiser
+    - cron: '0 0 */3 * *' # Executa à meia-noite a cada 3 dias
+  workflow_dispatch: # Permite que você clique em um botão para rodar agora
 
 jobs:
-  acessar_sites:
+  run-python:
     runs-on: ubuntu-latest
     steps:
-      - name: Baixar código do repo
+      - name: Checkout Repository
         uses: actions/checkout@v3
 
-      - name: Instalar Python
+      - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.9'
 
-      - name: Instalar dependências
-        run: pip install requests
+      - name: Install Dependencies
+        run: pip install selenium
 
-      - name: Executar script de acesso
-        run: python manter_sites.py
+      - name: Run Script
+        env:
+          GOFILE_TOKEN: ${{ secrets.GOFILE_TOKEN }}
+        run: python extrair_selenium.py
+
+      - name: Upload Results
+        uses: actions/upload-artifact@v3
+        with:
+          name: links-extraidos
+          path: |
+            links_gofile_profundo.txt
+            historico_pastas.txt
