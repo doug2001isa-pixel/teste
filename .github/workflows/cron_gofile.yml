@@ -1,34 +1,32 @@
-name: Renovacao GoFile 3 Dias
+name: Automação GoFile
 
 on:
   schedule:
-    - cron: '0 0 */3 * *' # Executa à meia-noite a cada 3 dias
-  workflow_dispatch: # Permite que você clique em um botão para rodar agora
+    - cron: '0 0 */3 * *' # Roda a cada 3 dias
+  workflow_dispatch: # Permite rodar manualmente no botão "Run workflow"
 
 jobs:
-  run-python:
+  run-automation:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Repository
+      - name: Checkout do código
         uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v4
+      - name: Configurar Python
+        uses: actions/setup-python@v5
         with:
           python-version: '3.9'
 
-      - name: Install Dependencies
-        run: pip install selenium
+      - name: Instalar Dependências
+        run: |
+          pip install selenium webdriver-manager
 
-      - name: Run Script
-        env:
-          GOFILE_TOKEN: ${{ secrets.GOFILE_TOKEN }}
+      - name: Rodar Script
         run: python extrair_selenium.py
 
-      - name: Upload Results
+      - name: Salvar Log de Resultados
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: links-extraidos
-          path: |
-            links_gofile_profundo.txt
-            historico_pastas.txt
+          name: log-execucao
+          path: videos_processados.txt
