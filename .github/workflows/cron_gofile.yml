@@ -2,8 +2,8 @@ name: Automação GoFile
 
 on:
   schedule:
-    - cron: '0 * * * *' # Roda a cada hora (ex: 13:00, 14:00...)
-  workflow_dispatch: # Mantém o botão para rodar manual
+    - cron: '0 */3 * * *' # Roda a cada 3 horas (00:00, 03:00, 06:00...)
+  workflow_dispatch:
 
 jobs:
   run-automation:
