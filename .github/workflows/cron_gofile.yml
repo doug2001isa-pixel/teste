@@ -2,8 +2,8 @@ name: Automação GoFile
 
 on:
   schedule:
-    - cron: '0 * * * *' # Roda no minuto 0 de cada hora
-  workflow_dispatch:
+    - cron: '0 * * * *' # Roda a cada hora (ex: 13:00, 14:00...)
+  workflow_dispatch: # Mantém o botão para rodar manual
 
 jobs:
   run-automation:
@@ -17,18 +17,14 @@ jobs:
         with:
           python-version: '3.9'
 
-      - name: Instalar Dependências e Chrome
+      - name: Instalar Dependências
         run: |
           pip install selenium webdriver-manager
-          # O Selenium precisa de um navegador no GitHub Actions
           sudo apt-get update
           sudo apt-get install -y google-chrome-stable
 
       - name: Rodar Script
         run: python extrair_selenium.py
-        env:
-          # Se o seu script usa variáveis de ambiente, coloque aqui
-          PYTHONUNBUFFERED: 1 
 
       - name: Salvar Log de Resultados
         if: always()
