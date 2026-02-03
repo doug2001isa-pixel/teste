@@ -15,19 +15,19 @@ def explorar_gofile(driver, url, nivel=0):
     try:
         driver.get(url)
         
-        # Espera carregar os itens (Essencial para GitHub Actions)
+        # Espera carregar o container principal
         try:
-            WebDriverWait(driver, 20).until(
-                EC.presence_of_element_located((By.CLASS_NAME, "contentItem"))
+            WebDriverWait(driver, 15).until(
+                EC.presence_of_element_located((By.ID, "content"))
             )
         except:
-            print(f"{indent}⚠️ Itens não carregaram ou pasta vazia.")
+            print(f"{indent}⚠️ Tempo esgotado para carregar a página.")
 
-        # Rola a página para garantir carregamento dinâmico
+        # Scroll para ativar o carregamento de itens
         driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-        time.sleep(5)
+        time.sleep(3)
 
-        # 1. Pastas
+        # 1. Capturar Pastas
         links = driver.find_elements(By.TAG_NAME, "a")
         urls_pastas = []
         for l in links:
@@ -37,51 +37,56 @@ def explorar_gofile(driver, url, nivel=0):
                     if href not in urls_pastas: urls_pastas.append(href)
             except: continue
 
-        # 2. Vídeos (Play) - XPath aprimorado para o novo layout do GoFile
-        botoes = driver.find_elements(By.XPATH, "//button[contains(., 'Play')] | //i[contains(@class, 'fa-play')]/..")
+        # 2. Capturar Vídeos - Melhorado para aguardar o botão ser clicável
+        try:
+            botoes = WebDriverWait(driver, 10).until(
+                EC.presence_of_all_elements_located((By.XPATH, "//button[contains(., 'Play')] | //i[contains(@class, 'fa-play')]/.."))
+            )
+        except:
+            botoes = []
+
         print(f"{indent}🎥 Vídeos: {len(botoes)} | 📂 Subpastas: {len(urls_pastas)}")
 
         for i in range(len(botoes)):
             try:
-                # Re-localiza para evitar 'stale element'
+                # Re-localiza para evitar 'stale element reference'
                 btns = driver.find_elements(By.XPATH, "//button[contains(., 'Play')] | //i[contains(@class, 'fa-play')]/..")
                 if i < len(btns):
                     print(f"{indent}  ▶️ Play no {i+1}...")
-                    driver.execute_script("arguments[0].scrollIntoView(true);", btns[i])
+                    
+                    # Tenta clicar via JavaScript (mais garantido no modo Headless)
+                    driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", btns[i])
                     time.sleep(1)
                     driver.execute_script("arguments[0].click();", btns[i])
-                    time.sleep(3) # Tempo de visualização
                     
+                    time.sleep(5) # Simula o tempo de visualização
+                    
+                    # Fecha abas extras se o GoFile abrir anúncios/popups
                     if len(driver.window_handles) > 1:
-                        driver.switch_to.window(driver.window_handles[-1])
-                        driver.close()
+                        for window in driver.window_handles[1:]:
+                            driver.switch_to.window(window)
+                            driver.close()
                         driver.switch_to.window(driver.window_handles[0])
                     
                     with open(ARQUIVO_SAIDA, "a") as f:
-                        f.write(f"OK: {url} - Video {i+1}\n")
-            except: continue
+                        f.write(f"OK: {url} - Video {i+1} - {time.ctime()}\n")
+            except Exception as e:
+                print(f"{indent}  ⚠️ Erro no vídeo {i+1}: {e}")
+                continue
 
-        # 3. Recursividade
-        for p_url in set(urls_pastas):
-            explorar_gofile(driver, p_url, nivel + 1)
+        # 3. Recursividade (limitando para evitar loop infinito)
+        if nivel < 5: 
+            for p_url in list(set(urls_pastas)):
+                explorar_gofile(driver, p_url, nivel + 1)
+                
     except Exception as e:
-        print(f"{indent}❌ Erro: {e}")
+        print(f"{indent}❌ Erro geral na pasta: {e}")
 
 # --- SETUP CHROME HEADLESS ---
 chrome_options = Options()
-chrome_options.add_argument("--headless=new")
+chrome_options.add_argument("--headless=new") # O novo headless é melhor
 chrome_options.add_argument("--no-sandbox")
 chrome_options.add_argument("--disable-dev-shm-usage")
 chrome_options.add_argument("--disable-gpu")
 chrome_options.add_argument("--window-size=1920,1080")
-chrome_options.add_argument("--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
-
-driver = webdriver.Chrome(options=chrome_options)
-
-try:
-    if not os.path.exists(ARQUIVO_SAIDA):
-        with open(ARQUIVO_SAIDA, "w") as f: f.write("LOG DE ATIVIDADE\n")
-    explorar_gofile(driver, ROOT_URL)
-finally:
-    print("\n🚀 Execução Concluída!")
-    driver.quit()
+chrome_options.add_argument("--user-agent=Mozilla/5.0 (Windows NT 10.0
