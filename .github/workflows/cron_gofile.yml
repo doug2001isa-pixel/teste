@@ -19,10 +19,7 @@ jobs:
 
       - name: Instalar Dependências
         run: |
-          # Instalamos apenas as bibliotecas Python necessárias
-          pip install selenium undetected-chromedriver 
-          
-          # No Ubuntu 24.04, instalamos a biblioteca de som atualizada
+          pip install selenium undetected-chromedriver
           sudo apt-get update
           sudo apt-get install -y libasound2t64
 
