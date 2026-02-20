@@ -4,12 +4,10 @@ import re
 import os
 import undetected_chromedriver as uc
 from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
 
-# Garante que os arquivos existam para o GitHub não dar erro de "Not Found"
-with open("videos_processados.txt", "w") as f:
-    f.write("Iniciando script...\n")
+# Força a criação do log no início para garantir o upload
+with open("resultado.txt", "w", encoding="utf-8") as f:
+    f.write("Iniciando processo...\n")
 
 def get_chrome_version():
     try:
@@ -25,40 +23,38 @@ options.add_argument("--no-sandbox")
 options.add_argument("--disable-dev-shm-usage")
 options.add_argument("--window-size=1920,1080")
 
-chrome_ver = get_chrome_version()
-driver = uc.Chrome(options=options, version_main=chrome_ver)
-
 try:
+    chrome_ver = get_chrome_version()
+    print(f"🚀 Versão do Chrome detectada: {chrome_ver}")
+    driver = uc.Chrome(options=options, version_main=chrome_ver)
+    
     url = "https://gofile.io/d/3JqmRC"
-    print(f"🚀 Acessando: {url}")
+    print(f"🌐 Acessando URL...")
     driver.get(url)
     
-    # Tira um print IMEDIATAMENTE após o get
-    driver.save_screenshot("debug_screen.png")
-    print("📸 Print inicial salvo.")
-
-    # Espera generosa para o Gofile/Cloudflare
-    time.sleep(25)
+    # Espera 30 segundos fixa para o Cloudflare
+    print("⏳ Aguardando 30 segundos para carregar...")
+    time.sleep(30)
     
-    # Tira outro print após o carregamento
-    driver.save_screenshot("debug_screen_pos_load.png")
+    # Tira o print com nome simples
+    driver.save_screenshot("print_tela.png")
+    print("📸 Print salvo como print_tela.png")
     
-    print(f"📄 Titulo: {driver.title}")
+    # Tenta extrair os textos
+    elementos = driver.find_elements(By.CLASS_NAME, "file_Name")
     
-    # Tenta listar os elementos
-    arquivos = driver.find_elements(By.CLASS_NAME, "file_Name")
+    with open("resultado.txt", "a", encoding="utf-8") as f:
+        f.write(f"Titulo: {driver.title}\n")
+        f.write(f"Elementos encontrados: {len(elementos)}\n")
+        for el in elementos:
+            f.write(f"Item: {el.text}\n")
     
-    with open("videos_processados.txt", "a") as f:
-        f.write(f"Sucesso: {len(arquivos)} arquivos encontrados.\n")
-        for a in arquivos:
-            f.write(f"{a.text}\n")
+    print(f"✅ Finalizado! Encontrados {len(elementos)} itens.")
 
 except Exception as e:
-    print(f"❌ Erro fatal: {e}")
-    # Se der erro, tenta salvar o print onde parou
-    try:
-        driver.save_screenshot("debug_screen_erro.py.png")
-    except:
-        pass
+    print(f"❌ Erro: {str(e)}")
+    with open("resultado.txt", "a", encoding="utf-8") as f:
+        f.write(f"ERRO: {str(e)}\n")
 finally:
-    driver.quit()
+    if 'driver' in locals():
+        driver.quit()
