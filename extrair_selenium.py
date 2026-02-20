@@ -1,62 +1,44 @@
 import time
-import undetected_chromedriver as uc # Importante: instale com 'pip install undetected-chromedriver'
+import undetected_chromedriver as uc
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
-# --- CONFIGURAÇÕES ---
-ROOT_URL = "https://gofile.io/d/3JqmRC"
-ARQUIVO_SAIDA = "videos_processados.txt"
-
-def explorar_gofile(driver, url, nivel=0):
-    indent = "  " * nivel
-    print(f"{indent}📂 Acessando: {url}")
-    try:
-        driver.get(url)
-        # Espera o carregamento de um seletor específico que confirma a página
-        try:
-            WebDriverWait(driver, 20).until(
-                EC.presence_of_element_located((By.CSS_SELECTOR, "div[class*='file']"))
-            )
-        except:
-            print(f"{indent}⚠️ Conteúdo não carregou. Tirando print para depuração...")
-            driver.save_screenshot(f"erro_pag_{nivel}.png")
-            return
-
-        # Scroll suave para garantir renderização
-        driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-        time.sleep(3)
-
-        # Captura elementos
-        botoes = driver.find_elements(By.XPATH, "//button[contains(., 'Play')]")
-        print(f"{indent}🎥 Vídeos detectados: {len(botoes)}")
-
-        # Processamento simplificado
-        for i in range(len(botoes)):
-            try:
-                # Re-localiza para evitar erro de stale element
-                btns = driver.find_elements(By.XPATH, "//button[contains(., 'Play')]")
-                driver.execute_script("arguments[0].click();", btns[i])
-                time.sleep(5) 
-                
-                with open(ARQUIVO_SAIDA, "a") as f:
-                    f.write(f"OK: {url} - Video {i+1} - {time.ctime()}\n")
-            except Exception as e:
-                print(f"{indent}  ⚠️ Erro no vídeo {i+1}: {e}")
-
-    except Exception as e:
-        print(f"{indent}❌ Erro geral na pasta: {e}")
-
-# --- INICIALIZAÇÃO ---
+# Configurações do Navegador
 options = uc.ChromeOptions()
-options.add_argument("--headless=new")
+options.add_argument("--headless=new") 
 options.add_argument("--no-sandbox")
+options.add_argument("--disable-dev-shm-usage")
+# User-agent real para evitar bloqueios de IP de data center
+options.add_argument("--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36")
 
-print("🚀 Iniciando Chrome (Modo Undetected)...")
+print("🚀 Iniciando navegador...")
 driver = uc.Chrome(options=options)
 
 try:
-    explorar_gofile(driver, ROOT_URL)
+    url = "https://gofile.io/d/3JqmRC"
+    driver.get(url)
+    
+    # Espera até 20 segundos para encontrar um elemento de arquivo ou pasta
+    print(f"⏳ Aguardando conteúdo de: {url}")
+    wait = WebDriverWait(driver, 20)
+    
+    # O GoFile costuma usar IDs ou classes que começam com 'file' ou 'content'
+    wait.until(EC.presence_of_element_located((By.CLASS_NAME, "file_Name")))
+    
+    print("✅ Página carregada com sucesso!")
+    print("Título:", driver.title)
+    
+    # Exemplo: Listar nomes dos arquivos encontrados
+    arquivos = driver.find_elements(By.CLASS_NAME, "file_Name")
+    for arq in arquivos:
+        print(f"📄 Arquivo encontrado: {arq.text}")
+
+except Exception as e:
+    print(f"❌ Erro durante a execução: {e}")
+    # Tira um print para você ver o que o bot está vendo (ajuda muito no debug)
+    driver.save_screenshot("debug_screen.png")
+
 finally:
     driver.quit()
-    print("\n✅ Processo finalizado!")
+    print("🏁 Processo finalizado.")
