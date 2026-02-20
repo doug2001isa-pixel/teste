@@ -2,8 +2,8 @@ name: Automação GoFile
 
 on:
   schedule:
-    - cron: '0 0 * * *' # Roda todos os dias à meia-noite (UTC)
-  workflow_dispatch: # Permite rodar manualmente quando quiser
+    - cron: '0 0 * * *' 
+  workflow_dispatch: 
 
 jobs:
   run-automation:
@@ -15,20 +15,25 @@ jobs:
       - name: Configurar Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.9'
+          python-version: '3.10' # Atualizado para 3.10 para melhor compatibilidade
 
       - name: Instalar Dependências
         run: |
-          pip install selenium webdriver-manager
+          # Adicionamos o undetected-chromedriver para bater com o seu import
+          pip install selenium undetected-chromedriver 
           sudo apt-get update
-          sudo apt-get install -y google-chrome-stable
+          # Instalando dependências de sistema para o Chrome rodar em modo "headless"
+          sudo apt-get install -y libnss3 libnspr4 libgbm1 libasound2 google-chrome-stable
 
       - name: Rodar Script
         run: python extrair_selenium.py
 
-      - name: Salvar Log de Resultados
+      - name: Salvar Log e Debug (Screenshot)
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: log-execucao
-          path: videos_processados.txt
+          name: log-e-debug
+          # Salvamos o log e um print da tela (caso o script gere um em erro)
+          path: |
+            videos_processados.txt
+            *.png
