@@ -7,15 +7,14 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
 def get_chrome_version():
-    """Detecta a versão do Chrome instalada no runner do GitHub"""
     try:
         version_str = subprocess.check_output(["google-chrome", "--version"]).decode("utf-8")
         version_match = re.search(r"(\d+)\.", version_str)
         return int(version_match.group(1))
     except:
-        return 144  # Fallback caso a detecção falhe
+        return 144
 
-# --- CONFIGURAÇÕES DO NAVEGADOR ---
+# Configurações
 options = uc.ChromeOptions()
 options.add_argument("--headless=new") 
 options.add_argument("--no-sandbox")
@@ -24,45 +23,39 @@ options.add_argument("--window-size=1920,1080")
 options.add_argument("--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36")
 
 chrome_ver = get_chrome_version()
-print(f"🚀 Iniciando navegador (Chrome v{chrome_ver})...")
+print(f"🚀 Iniciando Chrome v{chrome_ver}...")
 
-# Inicializa o driver com a versão correta para evitar o erro de SessionNotCreated
 driver = uc.Chrome(options=options, version_main=chrome_ver)
 
 try:
     url = "https://gofile.io/d/3JqmRC"
     driver.get(url)
     
-    print(f"⏳ Aguardando carregamento de: {url}")
-    # O GoFile é pesado; o WebDriverWait é essencial aqui
-    wait = WebDriverWait(driver, 30) 
+    print(f"⏳ Aguardando conteúdo de: {url}")
+    wait = WebDriverWait(driver, 30)
     
-    # Espera até que a lista de arquivos (ou o container de arquivos) apareça
-    # Tentamos um seletor comum no GoFile para a lista de arquivos
-    wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "div#filesList, .file_Name")))
+    # Espera os arquivos carregarem
+    wait.until(EC.presence_of_element_located((By.CLASS_NAME, "file_Name")))
     
-    print("✅ Página carregada com sucesso!")
-    print("Título:", driver.title)
-    
-    # Listar nomes dos arquivos encontrados
     arquivos = driver.find_elements(By.CLASS_NAME, "file_Name")
     
-    if not arquivos:
-        print("⚠️ Nenhum arquivo visível. O site pode estar bloqueando bots ou a pasta está vazia.")
-    else:
-        for arq in arquivos:
-            print(f"📄 Arquivo encontrado: {arq.text}")
-
-    # Cria um arquivo de log para o GitHub Artifacts não dar erro de "não encontrado"
-with open("videos_processados.txt", "w") as f:
-    f.write("Iniciando processo...")
+    # SALVANDO OS DADOS NO ARQUIVO (Dentro do bloco try)
+    with open("videos_processados.txt", "w") as f:
+        f.write(f"Relatorio de execucao: {time.ctime()}\n")
+        if arquivos:
+            for arq in arquivos:
+                f.write(f"📄 {arq.text}\n")
+                print(f"Encontrado: {arq.text}")
+        else:
+            f.write("Nenhum arquivo encontrado.\n")
 
 except Exception as e:
-    print(f"❌ Erro durante a execução: {e}")
-    # O screenshot é sua melhor ferramenta de debug no GitHub Actions
+    print(f"❌ Erro: {e}")
     driver.save_screenshot("debug_screen.png")
+    # Cria o arquivo mesmo se der erro para o GitHub Actions não reclamar
+    with open("videos_processados.txt", "a") as f:
+        f.write(f"\nErro ocorrido as {time.ctime()}: {str(e)}")
 
 finally:
-    if 'driver' in locals():
-        driver.quit()
+    driver.quit()
     print("🏁 Processo finalizado.")
