@@ -1,9 +1,12 @@
 import time
 import undetected_chromedriver as uc
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
 
+options = uc.ChromeOptions()
+options.add_argument("--headless=new")
+options.add_argument("--no-sandbox")
+options.add_argument("--disable-dev-shm-usage")
+
+driver = uc.Chrome(options=options)
 # Configurações do Navegador
 options = uc.ChromeOptions()
 options.add_argument("--headless=new") 
