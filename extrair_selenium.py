@@ -54,8 +54,8 @@ try:
             print(f"📄 Arquivo encontrado: {arq.text}")
 
     # Cria um arquivo de log para o GitHub Artifacts não dar erro de "não encontrado"
-    with open("videos_processados.txt", "w") as f:
-        f.write(f"Processado em: {time.ctime()}\nTotal arquivos: {len(arquivos)}")
+with open("videos_processados.txt", "w") as f:
+    f.write("Iniciando processo...")
 
 except Exception as e:
     print(f"❌ Erro durante a execução: {e}")
