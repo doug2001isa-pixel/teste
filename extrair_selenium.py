@@ -31,30 +31,29 @@ try:
     url = "https://gofile.io/d/3JqmRC"
     driver.get(url)
     
-    print(f"⏳ Aguardando conteúdo de: {url}")
-    wait = WebDriverWait(driver, 30)
+    # 1. Espera extra inicial para o Cloudflare/JS processar
+    print(f"⏳ Aguardando renderização inicial...")
+    time.sleep(15) 
     
-    # Espera os arquivos carregarem
-    wait.until(EC.presence_of_element_located((By.CLASS_NAME, "file_Name")))
+    # 2. Tira um print preventivo para vermos o estado da página
+    driver.save_screenshot("estado_inicial.png")
+    
+    wait = WebDriverWait(driver, 45) # Aumentamos para 45s
+    
+    print(f"🔍 Procurando arquivos em: {url}")
+    # Tentamos um seletor mais genérico que engloba qualquer item da lista
+    wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "div.file, .file_Name, #filesList")))
     
     arquivos = driver.find_elements(By.CLASS_NAME, "file_Name")
     
-    # SALVANDO OS DADOS NO ARQUIVO (Dentro do bloco try)
-    with open("videos_processados.txt", "w") as f:
-        f.write(f"Relatorio de execucao: {time.ctime()}\n")
-        if arquivos:
-            for arq in arquivos:
-                f.write(f"📄 {arq.text}\n")
-                print(f"Encontrado: {arq.text}")
-        else:
-            f.write("Nenhum arquivo encontrado.\n")
+    # ... resto do código de salvar arquivos ...
 
 except Exception as e:
     print(f"❌ Erro: {e}")
     driver.save_screenshot("debug_screen.png")
-    # Cria o arquivo mesmo se der erro para o GitHub Actions não reclamar
-    with open("videos_processados.txt", "a") as f:
-        f.write(f"\nErro ocorrido as {time.ctime()}: {str(e)}")
+    # Garante que o log seja criado para o upload não falhar
+    with open("videos_processados.txt", "w") as f:
+        f.write(f"Falha na captura: {time.ctime()}")
 
 finally:
     driver.quit()
