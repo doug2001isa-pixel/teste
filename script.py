@@ -2,17 +2,13 @@ import time
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.common.action_chains import ActionChains
 
 def run():
     chrome_options = Options()
     chrome_options.add_argument("--headless")
     chrome_options.add_argument("--no-sandbox")
     chrome_options.add_argument("--disable-dev-shm-usage")
-    # Tenta camuflar o uso de automação
-    chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
-    chrome_options.add_experimental_option('useAutomationExtension', False)
     chrome_options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36")
 
     driver = webdriver.Chrome(options=chrome_options)
@@ -20,55 +16,54 @@ def run():
     try:
         print("Acessando Gofile...")
         driver.get("https://gofile.io/d/3JqmRC")
-        
-        # Espera forçada para garantir que o JS do Gofile processe a página
         time.sleep(15)
         
-        # Tenta múltiplos seletores: a classe comum, ou qualquer link que contenha /d/
-        items = driver.find_elements(By.CSS_SELECTOR, ".contentItem, a[href*='/d/']")
-        
-        if len(items) == 0:
-            print("Nenhum item encontrado pelos seletores padrão. Verificando estrutura...")
-            driver.save_screenshot("layout_atual.png")
-            # Tenta pegar todos os links da página para debug
-            links = driver.find_elements(By.TAG_NAME, "a")
-            print(f"Total de links na página: {len(links)}")
-            return
+        # Pegamos apenas os IDs ou uma referência estável, para não dar erro de index
+        items_count = len(driver.find_elements(By.CSS_SELECTOR, ".contentItem, a[href*='/d/']"))
+        print(f"Sucesso! Encontrados {items_count} itens.")
 
-        print(f"Sucesso! Encontrados {len(items)} itens.")
-
-        for i in range(len(items)):
+        for i in range(items_count):
             try:
-                # Recarrega a lista para evitar elementos obsoletos
+                # RE-LOCALIZA os itens a cada iteração para evitar o erro de index/stale
                 current_items = driver.find_elements(By.CSS_SELECTOR, ".contentItem, a[href*='/d/']")
+                if i >= len(current_items): break
+                
                 item = current_items[i]
+                print(f"[{i+1}/{items_count}] Abrindo item...")
                 
-                nome = item.text.split('\n')[0] if item.text else f"Item {i+1}"
-                print(f"[{i+1}/{len(items)}] Abrindo: {nome}")
-                
-                # Clique via JavaScript para ignorar sobreposições
                 driver.execute_script("arguments[0].click();", item)
-                time.sleep(8) # Espera o carregamento do player
+                time.sleep(10) # Tempo maior para carregar o player
 
-                # Procura por vídeo
-                video_elements = driver.find_elements(By.TAG_NAME, "video")
-                if len(video_elements) > 0:
-                    print(" -> Vídeo detectado. 'Assistindo' por 5 segundos...")
+                # Busca por vídeo em toda a página, inclusive dentro de possíveis Shadow DOM ou apenas demora
+                videos = driver.find_elements(By.TAG_NAME, "video")
+                
+                if len(videos) > 0:
+                    print(" -> Vídeo detectado. Reproduzindo por 5 segundos...")
+                    # Tenta dar play via JS caso esteja pausado
+                    driver.execute_script("document.querySelector('video').play();")
                     time.sleep(5)
                 else:
-                    print(" -> Não detectado como vídeo direto.")
+                    # Se não achou <video>, pode ser que o Gofile use um player customizado ou seja pasta
+                    print(" -> Vídeo não detectado (pode ser pasta ou carregamento lento).")
                 
-                # Pressiona ESC para fechar modal ou voltar
-                webdriver.ActionChains(driver).send_keys("\ue00c").perform()
-                time.sleep(2)
+                # Volta para a lista principal (Gofile aceita ESC ou clicar no botão voltar do site)
+                # Vamos tentar ESC e depois garantir que voltamos ao link original se necessário
+                ActionChains(driver).send_keys("\ue00c").perform() # ESC
+                time.sleep(3)
+                
+                # Se o ESC não fechou o player, força a volta para o link principal
+                if "gofile.io/d/" not in driver.current_url or len(driver.find_elements(By.TAG_NAME, "video")) > 0:
+                    driver.get("https://gofile.io/d/3JqmRC")
+                    time.sleep(5)
 
             except Exception as e:
-                print(f"Erro ao processar item: {e}")
+                print(f"Erro no item {i+1}: {e}")
+                driver.get("https://gofile.io/d/3JqmRC") # Reset preventivo
+                time.sleep(5)
                 continue
 
     except Exception as e:
-        print(f"Erro Crítico: {e}")
-        driver.save_screenshot("erro_fatal.png")
+        print(f"Erro fatal: {e}")
     finally:
         print("Finalizando sessão.")
         driver.quit()
