@@ -2,34 +2,32 @@ name: Gofile Automator
 
 on:
   schedule:
-    - cron: '0 0 */2 * *' # Roda à meia-noite a cada 2 dias
-  workflow_dispatch: # Permite rodar manualmente para testar
+    - cron: '0 0 */2 * *' # A cada 48 horas
+  workflow_dispatch:
 
 jobs:
   run-script:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout código
-        uses: actions/checkout@v3
+      - name: Checkout
+        uses: actions/checkout@v4
 
       - name: Setup Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.10'
 
-      - name: Instalar dependências
+      - name: Instalar Dependências
         run: |
-          pip install playwright
+          pip install playwright playwright-stealth
           playwright install chromium --with-deps
 
       - name: Executar Automação
         run: python script.py
 
-      - name: Upload de Print em caso de erro
-        if: failure()
+      - name: Upload Debug Screenshot
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: screenshot-erro
-          path: |
-            error_screen.png
-            fatal_error.png
+          name: screenshots
+          path: "*.png"
