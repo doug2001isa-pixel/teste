@@ -24,3 +24,12 @@ jobs:
 
       - name: Executar Automação
         run: python script.py
+
+      - name: Upload de Print em caso de erro
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshot-erro
+          path: |
+            error_screen.png
+            fatal_error.png
