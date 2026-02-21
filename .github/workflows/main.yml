@@ -1,33 +1,32 @@
-name: Gofile Automator
+name: Gofile Selenium Automator
 
 on:
   schedule:
-    - cron: '0 0 */2 * *' # Roda a cada 48 horas
+    - cron: '0 0 */2 * *' # A cada 48 horas
   workflow_dispatch:
 
 jobs:
-  run-automation:
+  build:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout código
         uses: actions/checkout@v4
 
-      - name: Setup Python
+      - name: Configurar Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
 
-      - name: Instalar Playwright e Stealth
+      - name: Instalar Selenium
         run: |
-          pip install playwright playwright-stealth
-          playwright install chromium --with-deps
+          pip install selenium
 
       - name: Executar Script
         run: python script.py
 
-      - name: Salvar Prints em caso de falha
+      - name: Upload Screenshots (em caso de erro)
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: screenshots-debug
+          name: debug-screenshots
           path: "*.png"
