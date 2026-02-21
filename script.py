@@ -4,15 +4,16 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import TimeoutException
 
 def run():
     chrome_options = Options()
-    chrome_options.add_argument("--headless")  # Necessário para rodar no GitHub Actions
+    chrome_options.add_argument("--headless")
     chrome_options.add_argument("--no-sandbox")
     chrome_options.add_argument("--disable-dev-shm-usage")
-    chrome_options.add_argument("--window-size=1920,1080")
-    chrome_options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+    # Tenta camuflar o uso de automação
+    chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
+    chrome_options.add_experimental_option('useAutomationExtension', False)
+    chrome_options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36")
 
     driver = webdriver.Chrome(options=chrome_options)
     
@@ -20,50 +21,56 @@ def run():
         print("Acessando Gofile...")
         driver.get("https://gofile.io/d/3JqmRC")
         
-        # Espera até que os itens da lista apareçam (timeout de 30 segundos)
-        wait = WebDriverWait(driver, 30)
+        # Espera forçada para garantir que o JS do Gofile processe a página
+        time.sleep(15)
         
-        try:
-            # O Gofile costuma carregar itens com a classe 'contentItem'
-            wait.until(EC.presence_of_element_located((By.CLASS_SET_NAME, "contentItem")))
-        except:
-            print("Aviso: Itens demoraram a aparecer ou layout mudou. Tirando print...")
-            driver.save_screenshot("debug_layout.png")
+        # Tenta múltiplos seletores: a classe comum, ou qualquer link que contenha /d/
+        items = driver.find_elements(By.CSS_SELECTOR, ".contentItem, a[href*='/d/']")
+        
+        if len(items) == 0:
+            print("Nenhum item encontrado pelos seletores padrão. Verificando estrutura...")
+            driver.save_screenshot("layout_atual.png")
+            # Tenta pegar todos os links da página para debug
+            links = driver.find_elements(By.TAG_NAME, "a")
+            print(f"Total de links na página: {len(links)}")
+            return
 
-        items = driver.find_elements(By.CLASS_NAME, "contentItem")
-        print(f"Encontrados {len(items)} itens.")
+        print(f"Sucesso! Encontrados {len(items)} itens.")
 
         for i in range(len(items)):
             try:
-                # Re-localiza os itens a cada loop para evitar StaleElementReferenceException
-                current_items = driver.find_elements(By.CLASS_NAME, "contentItem")
+                # Recarrega a lista para evitar elementos obsoletos
+                current_items = driver.find_elements(By.CSS_SELECTOR, ".contentItem, a[href*='/d/']")
                 item = current_items[i]
                 
-                nome = item.text.split('\n')[0]
+                nome = item.text.split('\n')[0] if item.text else f"Item {i+1}"
                 print(f"[{i+1}/{len(items)}] Abrindo: {nome}")
                 
+                # Clique via JavaScript para ignorar sobreposições
                 driver.execute_script("arguments[0].click();", item)
-                time.sleep(5) # Espera carregar o conteúdo
+                time.sleep(8) # Espera o carregamento do player
 
-                # Verifica se há tag <video> na página
-                videos = driver.find_elements(By.TAG_NAME, "video")
-                if len(videos) > 0:
-                    print(" -> Vídeo detectado. Reproduzindo por 5 segundos...")
+                # Procura por vídeo
+                video_elements = driver.find_elements(By.TAG_NAME, "video")
+                if len(video_elements) > 0:
+                    print(" -> Vídeo detectado. 'Assistindo' por 5 segundos...")
                     time.sleep(5)
+                else:
+                    print(" -> Não detectado como vídeo direto.")
                 
-                # Tenta voltar ou fechar o modal (pressionando ESC)
-                webdriver.ActionChains(driver).send_keys("\ue00c").perform() # ESC key
+                # Pressiona ESC para fechar modal ou voltar
+                webdriver.ActionChains(driver).send_keys("\ue00c").perform()
                 time.sleep(2)
-                
+
             except Exception as e:
-                print(f"Erro ao processar item {i}: {e}")
+                print(f"Erro ao processar item: {e}")
                 continue
 
     except Exception as e:
-        print(f"Erro fatal: {e}")
+        print(f"Erro Crítico: {e}")
         driver.save_screenshot("erro_fatal.png")
     finally:
-        print("Finalizando...")
+        print("Finalizando sessão.")
         driver.quit()
 
 if __name__ == "__main__":
