@@ -1,94 +1,113 @@
+import os
 import time
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
-from selenium.webdriver.common.action_chains import ActionChains
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from webdriver_manager.chrome import ChromeDriverManager
 
-def run():
-    chrome_options = Options()
-    chrome_options.add_argument("--headless")
-    chrome_options.add_argument("--no-sandbox")
-    chrome_options.add_argument("--disable-dev-shm-usage")
-    chrome_options.add_argument("--autoplay-policy=no-user-gesture-required")
-    chrome_options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36")
+# --- CONFIGURAÇÕES ---
+ROOT_URL = "https://gofile.io/d/3JqmRC"
+ARQUIVO_SAIDA = "videos_processados.txt"
 
-    driver = webdriver.Chrome(options=chrome_options)
-    video_extensions = ('.mp4', '.mkv', '.avi', '.mov', '.webm', '.flv')
-    
+def explorar_gofile(driver, url, nivel=0):
+    indent = "  " * nivel
+    print(f"{indent}📂 Pasta: {url}")
     try:
-        print("Acessando Gofile...")
-        driver.get("https://gofile.io/d/3JqmRC")
-        time.sleep(15)
+        driver.get(url)
         
-        # Localiza os itens iniciais
-        items_elements = driver.find_elements(By.CSS_SELECTOR, ".contentItem, a[href*='/d/']")
-        total_items = len(items_elements)
-        print(f"Sucesso! Encontrados {total_items} itens na página.")
+        # Espera o carregamento inicial do GoFile
+        try:
+            WebDriverWait(driver, 20).until(
+                EC.presence_of_element_located((By.ID, "content"))
+            )
+        except:
+            print(f"{indent}⚠️ Conteúdo demorou muito para carregar ou pasta vazia.")
 
-        for i in range(total_items):
+        # Scroll para carregar elementos dinâmicos
+        driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+        time.sleep(5)
+
+        # 1. Capturar Pastas
+        links = driver.find_elements(By.TAG_NAME, "a")
+        urls_pastas = []
+        for l in links:
             try:
-                # Re-localiza os itens para evitar erro de referência (stale element)
-                current_items = driver.find_elements(By.CSS_SELECTOR, ".contentItem, a[href*='/d/']")
-                if i >= len(current_items):
-                    break
-                
-                item = current_items[i]
-                nome_ficheiro = item.text.lower()
-                
-                # FILTRO: Só clica se for extensão de vídeo
-                if not any(ext in nome_ficheiro for ext in video_extensions):
-                    continue
+                href = l.get_attribute("href")
+                if href and "/d/" in href and href.strip("/") != url.strip("/") and href != ROOT_URL:
+                    if href not in urls_pastas: urls_pastas.append(href)
+            except: continue
 
-                print(f"[{i+1}/{total_items}] Abrindo vídeo: {nome_ficheiro.splitlines()[0]}")
-                
-                # Clique via JS
-                driver.execute_script("arguments[0].click();", item)
-                time.sleep(12) 
+        # 2. Capturar Vídeos (Botão Play)
+        try:
+            botoes = driver.find_elements(By.XPATH, "//button[contains(., 'Play')] | //i[contains(@class, 'fa-play')]/..")
+        except:
+            botoes = []
 
-                # Busca por vídeo (inclusive dentro de iFrames)
-                video_found = False
-                videos = driver.find_elements(By.TAG_NAME, "video")
-                
-                if len(videos) > 0:
-                    video_found = True
-                else:
-                    iframes = driver.find_elements(By.TAG_NAME, "iframe")
-                    for iframe in iframes:
-                        try:
-                            driver.switch_to.frame(iframe)
-                            if len(driver.find_elements(By.TAG_NAME, "video")) > 0:
-                                video_found = True
-                                break
-                            driver.switch_to.default_content()
-                        except:
-                            driver.switch_to.default_content()
+        print(f"{indent}🎥 Vídeos detectados: {len(botoes)} | 📂 Subpastas: {len(urls_pastas)}")
 
-                if video_found:
-                    print(" -> Tag <video> detectada! Reproduzindo por 5 segundos...")
-                    driver.execute_script("document.querySelector('video').play();")
-                    time.sleep(5)
-                else:
-                    print(" -> Vídeo não detectado no HTML, aguardando 5s de buffer...")
-                    time.sleep(5)
-
-                # Volta para a página principal
-                driver.get("https://gofile.io/d/3JqmRC")
-                time.sleep(8)
-                driver.switch_to.default_content()
-
-            except Exception as e_item:
-                print(f"Erro ao processar item {i+1}: {e_item}")
-                driver.get("https://gofile.io/d/3JqmRC")
-                time.sleep(5)
+        for i in range(len(botoes)):
+            try:
+                # Re-localiza para evitar erro de elemento antigo (stale)
+                btns = driver.find_elements(By.XPATH, "//button[contains(., 'Play')] | //i[contains(@class, 'fa-play')]/..")
+                if i < len(btns):
+                    print(f"{indent}  ▶️ Tentando clicar no vídeo {i+1}...")
+                    
+                    driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", btns[i])
+                    time.sleep(2)
+                    driver.execute_script("arguments[0].click();", btns[i])
+                    
+                    time.sleep(7) # Simula visualização
+                    
+                    # Fecha popups/anúncios
+                    if len(driver.window_handles) > 1:
+                        for window in driver.window_handles[1:]:
+                            driver.switch_to.window(window)
+                            driver.close()
+                        driver.switch_to.window(driver.window_handles[0])
+                    
+                    # Salva progresso
+                    with open(ARQUIVO_SAIDA, "a") as f:
+                        f.write(f"OK: {url} - Video {i+1} - {time.ctime()}\n")
+            except Exception as e:
+                print(f"{indent}  ⚠️ Erro no vídeo {i+1}: {e}")
                 continue
 
-    except Exception as e_fatal:
-        print(f"Erro Crítico: {e_fatal}")
-        driver.save_screenshot("erro_fatal.png")
-    
-    finally:
-        print("Finalizando sessão.")
-        driver.quit()
+        # 3. Recursividade (Entrar nas subpastas)
+        if nivel < 3: 
+            for p_url in list(set(urls_pastas)):
+                explorar_gofile(driver, p_url, nivel + 1)
+                
+    except Exception as e:
+        print(f"{indent}❌ Erro geral na pasta: {e}")
 
-if __name__ == "__main__":
-    run()
+# --- INICIALIZAÇÃO DO DRIVER ---
+
+chrome_options = Options()
+chrome_options.add_argument("--headless=new")
+chrome_options.add_argument("--no-sandbox")
+chrome_options.add_argument("--disable-dev-shm-usage")
+chrome_options.add_argument("--disable-gpu")
+chrome_options.add_argument("--window-size=1920,1080")
+chrome_options.add_argument("--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36")
+
+try:
+    print("🚀 Iniciando Chrome no GitHub Actions...")
+    # Cria o arquivo de log imediatamente para evitar erro de 'No files found'
+    with open(ARQUIVO_SAIDA, "w") as f:
+        f.write(f"INICIO DA AUTOMAÇÃO: {time.ctime()}\n")
+
+    service = Service(ChromeDriverManager().install())
+    driver = webdriver.Chrome(service=service, options=chrome_options)
+    
+    explorar_gofile(driver, ROOT_URL)
+
+except Exception as e:
+    print(f"❌ Erro crítico ao iniciar o script: {e}")
+
+finally:
+    if 'driver' in locals():
+        print("\n✅ Processo finalizado!")
+        driver.quit()
