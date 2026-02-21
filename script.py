@@ -4,63 +4,72 @@ from playwright_stealth import stealth
 
 def run():
     with sync_playwright() as p:
-        # Inicializa o navegador
+        # Inicializa o navegador em modo headless
         browser = p.chromium.launch(headless=True)
         context = browser.new_context(
             user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
         )
         page = context.new_page()
         
-        # Aplica o stealth para evitar bloqueios do Gofile/Cloudflare
+        # Aplica stealth para evitar detecção
         stealth(page)
 
         try:
             print("Acessando Gofile...")
-            # Timeout de 90s para garantir que a página carregue no servidor do GitHub
             page.goto("https://gofile.io/d/3JqmRC", wait_until="networkidle", timeout=90000)
             
-            # Aguarda o carregamento dos elementos dinâmicos
+            # Tempo para o JavaScript carregar os itens
             time.sleep(10)
 
-            # Localiza os itens (pastas e arquivos)
+            # Localiza os arquivos/pastas
             items = page.locator(".contentItem")
             count = items.count()
             
             if count == 0:
-                print("Nenhum item encontrado. Salvando screenshot de debug...")
-                page.screenshot(path="debug_no_items.png")
+                print("Nenhum item encontrado. Verifique o link ou seletor.")
+                page.screenshot(path="sem_itens.png")
                 return
 
-            print(f"Total de itens encontrados: {count}")
+            print(f"Sucesso: {count} itens encontrados.")
 
-            # Loop para interagir com cada item
             for i in range(count):
                 try:
-                    # Seleciona o item atual
-                    current_item = items.nth(i)
-                    current_item.scroll_into_view_if_needed()
+                    # Seleciona o item atual do loop
+                    item = items.nth(i)
+                    item.scroll_into_view_if_needed()
                     
-                    nome = current_item.inner_text().split('\n')[0]
+                    nome = item.inner_text().split('\n')[0]
                     print(f"[{i+1}/{count}] Abrindo: {nome}")
                     
-                    # Clica e espera o carregamento
-                    current_item.click()
-                    time.sleep(5)
+                    item.click()
+                    time.sleep(7) # Espera o carregamento do player/pasta
 
-                    # Verifica se é um vídeo
+                    # Verifica se existe um elemento de vídeo
                     video_locator = page.locator("video")
                     if video_locator.count() > 0:
-                        print(f" -> Vídeo detectado. Reproduzindo...")
-                        # Força o play via JavaScript
-                        page.evaluate("document.querySelector('video').play().catch(e => console.log('Auto-play blocked'))")
-                        time.sleep(5) # "Assiste" por 5 segundos
-                        
-                        # Fecha o player ou volta para a lista
-                        page.keyboard.press("Escape")
+                        print(" -> Vídeo detectado. Reproduzindo por 5 segundos...")
+                        # Tenta dar play via JS para garantir execução
+                        page.evaluate("if(document.querySelector('video')) { document.querySelector('video').play(); }")
+                        time.sleep(5)
                     else:
-                        print(" -> Item aberto (não é vídeo ou requer clique extra).")
-                        page.keyboard.press("Escape")
-                    
-                    time.sleep(2) # Pausa entre itens
+                        print(" -> Não é um vídeo ou demorou a carregar.")
 
-                except Exception as e_interno
+                    # Tenta fechar o que abriu para voltar à lista
+                    page.keyboard.press("Escape")
+                    time.sleep(2)
+
+                except Exception as e_item:
+                    print(f"Erro ao processar item {i}: {e_item}")
+                    page.keyboard.press("Escape")
+                    continue
+
+        except Exception as e_fatal:
+            print(f"Erro Crítico: {e_fatal}")
+            page.screenshot(path="erro_fatal.png")
+        
+        finally:
+            print("Fechando navegador...")
+            browser.close()
+
+if __name__ == "__main__":
+    run()
