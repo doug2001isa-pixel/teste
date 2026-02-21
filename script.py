@@ -4,59 +4,63 @@ from playwright_stealth import stealth
 
 def run():
     with sync_playwright() as p:
-        # Lançando o navegador
+        # Inicializa o navegador
         browser = p.chromium.launch(headless=True)
         context = browser.new_context(
             user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
         )
         page = context.new_page()
         
-        # Aplicando o stealth para evitar detecção
+        # Aplica o stealth para evitar bloqueios do Gofile/Cloudflare
         stealth(page)
 
         try:
             print("Acessando Gofile...")
-            # Aumentei o timeout para dar tempo da página carregar tudo
+            # Timeout de 90s para garantir que a página carregue no servidor do GitHub
             page.goto("https://gofile.io/d/3JqmRC", wait_until="networkidle", timeout=90000)
             
-            # Pequena pausa para garantir que os elementos dinâmicos apareçam
+            # Aguarda o carregamento dos elementos dinâmicos
             time.sleep(10)
 
-            # O Gofile costuma usar o seletir .contentItem para arquivos e pastas
+            # Localiza os itens (pastas e arquivos)
             items = page.locator(".contentItem")
             count = items.count()
             
             if count == 0:
-                print("Atenção: Nenhum item (.contentItem) encontrado.")
-                page.screenshot(path="sem_itens.png")
-                # Tentativa secundária: procurar por links de download/diretório
-                items = page.locator('a[href*="/d/"]')
-                count = items.count()
-                print(f"Tentativa secundária encontrou {count} links.")
+                print("Nenhum item encontrado. Salvando screenshot de debug...")
+                page.screenshot(path="debug_no_items.png")
+                return
 
+            print(f"Total de itens encontrados: {count}")
+
+            # Loop para interagir com cada item
             for i in range(count):
                 try:
-                    item = items.nth(i)
-                    # Força a visibilidade
-                    item.scroll_into_view_if_needed()
+                    # Seleciona o item atual
+                    current_item = items.nth(i)
+                    current_item.scroll_into_view_if_needed()
                     
-                    text = item.inner_text().split('\n')[0]
-                    print(f"[{i+1}/{count}] Interagindo com: {text}")
+                    nome = current_item.inner_text().split('\n')[0]
+                    print(f"[{i+1}/{count}] Abrindo: {nome}")
                     
-                    # Clica e aguarda a transição
-                    item.click()
-                    time.sleep(5) 
+                    # Clica e espera o carregamento
+                    current_item.click()
+                    time.sleep(5)
 
-                    # Verifica se um vídeo foi carregado
-                    video = page.locator("video")
-                    if video.count() > 0:
-                        print(" -> Vídeo detectado! Reproduzindo por 5 segundos...")
-                        # Tenta dar o play caso não seja automático
-                        page.evaluate("if(document.querySelector('video')) { document.querySelector('video').play(); }")
-                        time.sleep(5)
-                        # Aperta ESC para fechar o player ou volta
+                    # Verifica se é um vídeo
+                    video_locator = page.locator("video")
+                    if video_locator.count() > 0:
+                        print(f" -> Vídeo detectado. Reproduzindo...")
+                        # Força o play via JavaScript
+                        page.evaluate("document.querySelector('video').play().catch(e => console.log('Auto-play blocked'))")
+                        time.sleep(5) # "Assiste" por 5 segundos
+                        
+                        # Fecha o player ou volta para a lista
                         page.keyboard.press("Escape")
-                        time.sleep(2)
                     else:
-                        print(" -> Não é vídeo ou pasta. Voltando...")
-                        # Se o
+                        print(" -> Item aberto (não é vídeo ou requer clique extra).")
+                        page.keyboard.press("Escape")
+                    
+                    time.sleep(2) # Pausa entre itens
+
+                except Exception as e_interno
