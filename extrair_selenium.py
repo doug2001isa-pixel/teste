@@ -1,60 +1,41 @@
 import time
-import subprocess
-import re
-import os
-import undetected_chromedriver as uc
-from selenium.webdriver.common.by import By
+from playwright.sync_api import sync_playwright
 
-# Força a criação do log no início para garantir o upload
-with open("resultado.txt", "w", encoding="utf-8") as f:
-    f.write("Iniciando processo...\n")
+def run():
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        page = browser.new_page()
+        
+        print("Acessando Gofile...")
+        page.goto("https://gofile.io/d/3JqmRC")
+        
+        # Espera o carregamento dos itens
+        page.wait_for_selector(".contentItem", timeout=20000)
+        
+        # Encontra todos os itens (pastas e arquivos)
+        items = page.query_selector_all(".contentItem")
+        
+        for item in items:
+            # Verifica se é pasta ou vídeo (simplificado pela lógica de clique)
+            item_name = item.inner_text()
+            print(f"Processando: {item_name}")
+            
+            try:
+                item.click()
+                time.sleep(2) # Espera abrir
+                
+                # Se houver um elemento de vídeo na tela
+                video = page.query_selector("video")
+                if video:
+                    print(f"Vídeo detectado. Reproduzindo por 5 segundos...")
+                    time.sleep(5)
+                
+                # Volta para a listagem se necessário
+                # page.go_back() 
+            except Exception as e:
+                print(f"Erro ao interagir com {item_name}: {e}")
 
-def get_chrome_version():
-    try:
-        version_str = subprocess.check_output(["google-chrome", "--version"]).decode("utf-8")
-        version_match = re.search(r"(\d+)\.", version_str)
-        return int(version_match.group(1))
-    except:
-        return 144
+        browser.close()
 
-options = uc.ChromeOptions()
-options.add_argument("--headless=new")
-options.add_argument("--no-sandbox")
-options.add_argument("--disable-dev-shm-usage")
-options.add_argument("--window-size=1920,1080")
-
-try:
-    chrome_ver = get_chrome_version()
-    print(f"🚀 Versão do Chrome detectada: {chrome_ver}")
-    driver = uc.Chrome(options=options, version_main=chrome_ver)
-    
-    url = "https://gofile.io/d/3JqmRC"
-    print(f"🌐 Acessando URL...")
-    driver.get(url)
-    
-    # Espera 30 segundos fixa para o Cloudflare
-    print("⏳ Aguardando 30 segundos para carregar...")
-    time.sleep(30)
-    
-    # Tira o print com nome simples
-    driver.save_screenshot("print_tela.png")
-    print("📸 Print salvo como print_tela.png")
-    
-    # Tenta extrair os textos
-    elementos = driver.find_elements(By.CLASS_NAME, "file_Name")
-    
-    with open("resultado.txt", "a", encoding="utf-8") as f:
-        f.write(f"Titulo: {driver.title}\n")
-        f.write(f"Elementos encontrados: {len(elementos)}\n")
-        for el in elementos:
-            f.write(f"Item: {el.text}\n")
-    
-    print(f"✅ Finalizado! Encontrados {len(elementos)} itens.")
-
-except Exception as e:
-    print(f"❌ Erro: {str(e)}")
-    with open("resultado.txt", "a", encoding="utf-8") as f:
-        f.write(f"ERRO: {str(e)}\n")
-finally:
-    if 'driver' in locals():
-        driver.quit()
+if __name__ == "__main__":
+    run()
