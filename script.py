@@ -1,65 +1,64 @@
 import time
 from playwright.sync_api import sync_playwright
-from playwright_stealth import stealth
+from playwright_stealth import stealth_sync  # Mudança aqui
 
 def run():
     with sync_playwright() as p:
-        # Inicializa o navegador em modo headless
+        # Lançando o navegador
         browser = p.chromium.launch(headless=True)
         context = browser.new_context(
             user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
         )
         page = context.new_page()
         
-        # Aplica stealth para evitar detecção
-        stealth(page)
+        # Agora chamando a função correta para modo síncrono
+        stealth_sync(page) 
 
         try:
             print("Acessando Gofile...")
             page.goto("https://gofile.io/d/3JqmRC", wait_until="networkidle", timeout=90000)
             
-            # Tempo para o JavaScript carregar os itens
+            # Espera o carregamento inicial
             time.sleep(10)
 
-            # Localiza os arquivos/pastas
-            items = page.locator(".contentItem")
-            count = items.count()
+            # O Gofile usa a classe .contentItem para arquivos e pastas
+            items_locator = page.locator(".contentItem")
+            count = items_locator.count()
             
             if count == 0:
-                print("Nenhum item encontrado. Verifique o link ou seletor.")
-                page.screenshot(path="sem_itens.png")
+                print("Aviso: Nenhum item encontrado. Verifique o link.")
+                page.screenshot(path="debug_vazio.png")
                 return
 
-            print(f"Sucesso: {count} itens encontrados.")
+            print(f"Sucesso: {count} itens encontrados para processar.")
 
             for i in range(count):
                 try:
-                    # Seleciona o item atual do loop
-                    item = items.nth(i)
+                    item = items_locator.nth(i)
                     item.scroll_into_view_if_needed()
                     
                     nome = item.inner_text().split('\n')[0]
                     print(f"[{i+1}/{count}] Abrindo: {nome}")
                     
                     item.click()
-                    time.sleep(7) # Espera o carregamento do player/pasta
+                    time.sleep(7) 
 
-                    # Verifica se existe um elemento de vídeo
-                    video_locator = page.locator("video")
-                    if video_locator.count() > 0:
-                        print(" -> Vídeo detectado. Reproduzindo por 5 segundos...")
-                        # Tenta dar play via JS para garantir execução
+                    # Verifica se o elemento de vídeo apareceu
+                    video = page.locator("video")
+                    if video.count() > 0:
+                        print(" -> Vídeo detectado. Reproduzindo...")
+                        # Tenta dar play via JS
                         page.evaluate("if(document.querySelector('video')) { document.querySelector('video').play(); }")
                         time.sleep(5)
                     else:
-                        print(" -> Não é um vídeo ou demorou a carregar.")
+                        print(" -> Não é vídeo ou ainda está carregando.")
 
-                    # Tenta fechar o que abriu para voltar à lista
+                    # Aperta ESC para voltar/fechar
                     page.keyboard.press("Escape")
                     time.sleep(2)
 
                 except Exception as e_item:
-                    print(f"Erro ao processar item {i}: {e_item}")
+                    print(f"Erro no item {i}: {e_item}")
                     page.keyboard.press("Escape")
                     continue
 
@@ -68,7 +67,7 @@ def run():
             page.screenshot(path="erro_fatal.png")
         
         finally:
-            print("Fechando navegador...")
+            print("Processo finalizado.")
             browser.close()
 
 if __name__ == "__main__":
